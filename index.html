@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phantom Comm-Link V3</title>
+    <title>Phantom Comm-Link V3 (STUN Enabled)</title>
     <style>
         body {
             background-color: #050505; color: #00ffcc; font-family: 'Courier New', monospace;
@@ -121,7 +121,7 @@
         const typingIndicator = document.getElementById('typing-indicator');
         const emojiPicker = document.getElementById('emoji-picker');
 
-        // Extended Emoji Dictionary
+        // The Complete Tactical Face Dictionary
         const emojis = [
             "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌",
             "😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸",
@@ -130,9 +130,8 @@
             "🫢","🫡","🤔","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦","😧",
             "😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷","🤒",
             "🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃",
-            // Keeping a few critical operational glyphs at the end
             "📍","⚠️","✅","❌","🛑","☢️","☣️","🔒","🔓","🔑","⏳","⌚","📱","💻","💣","🔫"
-                    ];
+        ];
 
         // Populate Emoji Picker
         emojis.forEach(e => {
@@ -198,11 +197,20 @@
             }
         });
 
-        // --- HOST LOGIC ---
+        // --- HOST LOGIC (STUN INJECTED) ---
         function initHost() {
             const code = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase();
             const fullPeerId = PEER_PREFIX + code;
-            const peer = new Peer(fullPeerId);
+            
+            // Bypass firewalls with Google STUN Servers
+            const peer = new Peer(fullPeerId, {
+                config: {
+                    'iceServers': [
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
             
             peer.on('open', () => document.getElementById('host-code').value = code);
             peer.on('connection', (conn) => {
@@ -212,7 +220,7 @@
             });
         }
 
-        // --- GUEST LOGIC ---
+        // --- GUEST LOGIC (STUN INJECTED) ---
         function connectToHost() {
             const code = document.getElementById('guest-input').value.trim().toUpperCase();
             if (code.length !== 6) return alert("Invalid Channel Code.");
@@ -220,7 +228,16 @@
             document.getElementById('connect-btn').style.display = 'none';
             document.getElementById('guest-status').style.display = 'block';
 
-            const peer = new Peer(); 
+            // Bypass firewalls with Google STUN Servers
+            const peer = new Peer({
+                config: {
+                    'iceServers': [
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            }); 
+            
             peer.on('open', () => {
                 const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
                 conn.on('open', () => setupDataChannel(conn));
