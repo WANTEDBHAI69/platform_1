@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phantom Comm-Link V3</title>
+    <style>
+        body {
+            background-color: #050505; color: #00ffcc; font-family: 'Courier New', monospace;
+            margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box;
+        }
+        
+        .panel { display: none; flex-direction: column; height: 100%; padding: 20px; box-sizing: border-box; align-items: center; justify-content: center; }
+        .active-panel { display: flex; }
+        
+        h1 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; text-transform: uppercase; text-align: center; width: 100%; max-width: 600px;}
+        
+        .controls { background: rgba(15, 20, 25, 0.9); padding: 30px; border: 1px solid #00ffcc; border-radius: 4px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); text-align: center; width: 100%; max-width: 400px;}
+        input[type="text"] { width: 100%; background: #000; color: #00ffcc; border: 1px solid #00ffcc; padding: 15px; box-sizing: border-box; margin-top: 15px; font-family: inherit; font-size: 1.5em; text-align: center; text-transform: uppercase; letter-spacing: 2px;}
+        input[type="text"]:focus { outline: none; box-shadow: 0 0 10px rgba(0, 255, 204, 0.5); }
+        
+        .btn { background: transparent; color: #00ffcc; border: 1px solid #00ffcc; padding: 15px; font-family: inherit; font-size: 1.2em; cursor: pointer; transition: 0.3s; text-transform: uppercase; margin-top: 20px; width: 100%;}
+        .btn:hover { background: #00ffcc; color: #000; font-weight: bold;}
+        .btn-danger { color: #ff003c; border-color: #ff003c; }
+        .btn-danger:hover { background: #ff003c; color: #000; }
+        
+        .status { margin-top: 20px; font-size: 0.9em; color: #888; font-weight: bold;}
+        
+        /* Chat Interface */
+        #chat-panel { padding: 10px; max-width: 800px; margin: 0 auto; width: 100%; justify-content: flex-start; position: relative;}
+        #chat-box { flex-grow: 1; width: 100%; background: #0a0a0a; border: 1px solid #333; margin-bottom: 5px; overflow-y: auto; padding: 15px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+        
+        .msg { padding: 10px 15px; border-radius: 4px; max-width: 80%; word-wrap: break-word; font-size: 1.1em;}
+        .msg-local { background: rgba(0, 255, 204, 0.1); border: 1px solid #00ffcc; align-self: flex-end; color: #00ffcc;}
+        .msg-remote { background: rgba(255, 0, 60, 0.1); border: 1px solid #ff003c; align-self: flex-start; color: #ff003c;}
+        .msg-sys { text-align: center; color: #888; font-size: 0.85em; width: 100%; font-style: italic; align-self: center;}
+        
+        .indicator-row { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 20px; margin-bottom: 5px; }
+        #typing-indicator { color: #ffaa00; font-size: 0.85em; font-style: italic; visibility: hidden; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        /* Emoji Picker Matrix */
+        .input-wrapper { position: relative; display: flex; width: 100%; gap: 10px; }
+        #emoji-btn { background: #111; border: 1px solid #333; color: #00ffcc; cursor: pointer; padding: 0 15px; font-size: 1.5em; border-radius: 3px; transition: 0.2s; }
+        #emoji-btn:hover { background: #222; border-color: #00ffcc; }
+        
+        #emoji-picker { 
+            display: none; position: absolute; bottom: 60px; left: 0; width: 300px; height: 250px; 
+            background: rgba(10, 10, 10, 0.95); border: 1px solid #00ffcc; box-shadow: 0 0 20px rgba(0, 255, 204, 0.2); 
+            padding: 10px; overflow-y: auto; z-index: 100; flex-wrap: wrap; gap: 5px; align-content: flex-start;
+        }
+        .emoji-item { font-size: 1.5em; cursor: pointer; padding: 5px; transition: 0.2s; user-select: none; }
+        .emoji-item:hover { background: #333; transform: scale(1.2); }
+        
+        #msg-input { margin-top: 0; font-size: 1.2em; text-align: left; text-transform: none; letter-spacing: normal; flex-grow: 1;}
+        #send-btn { width: auto; margin-top: 0; padding: 0 30px;}
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+
+    <div id="lobby-panel" class="panel active-panel">
+        <h1>[ Secure Terminal V3 ]</h1>
+        <div class="controls">
+            <p style="margin: 0; color: #888;">Select Protocol</p>
+            <button class="btn" onclick="showPanel('host-panel'); initHost();">1. Create Secure Room</button>
+            <button class="btn btn-danger" onclick="showPanel('guest-panel');">2. Join Target Room</button>
+        </div>
+    </div>
+
+    <div id="host-panel" class="panel">
+        <h1>[ Dispatch ]</h1>
+        <div class="controls">
+            <p style="margin: 0; color: #888;">Provide this channel code to the asset.</p>
+            <input type="text" id="host-code" readonly onclick="this.select()" value="GENERATING...">
+            <div class="status" id="host-status">Status: Waiting for connection...</div>
+        </div>
+    </div>
+
+    <div id="guest-panel" class="panel">
+        <h1 style="color: #ff003c; border-bottom-color: #ff003c;">[ Intercept ]</h1>
+        <div class="controls" style="border-color: #ff003c;">
+            <p style="margin: 0; color: #888;">Enter the 6-digit channel code.</p>
+            <input type="text" id="guest-input" placeholder="XXXXXX" maxlength="6">
+            <button class="btn btn-danger" id="connect-btn" onclick="connectToHost()">Engage</button>
+            <div class="status" id="guest-status" style="display: none;">Status: Connecting...</div>
+        </div>
+    </div>
+
+    <div id="chat-panel" class="panel">
+        <div class="header-row">
+            <span style="color: #00ffcc; font-weight: bold;">[ ENCRYPTED TUNNEL ACTIVE ]</span>
+            <button class="btn btn-danger" style="margin: 0; padding: 5px 15px; width: auto; font-size: 0.9em;" onclick="burnComms()">Burn Chat</button>
+        </div>
+        
+        <div id="chat-box">
+            <div class="msg msg-sys">Peer-to-Peer JSON Tunnel Locked. End-to-End Encryption verified.</div>
+        </div>
+        
+        <div class="indicator-row">
+            <div id="typing-indicator">> Target is actively entering keystrokes...</div>
+        </div>
+        
+        <div class="input-wrapper">
+            <button id="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
+            <div id="emoji-picker"></div>
+            <input type="text" id="msg-input" placeholder="Type payload..." autocomplete="off">
+            <button class="btn" id="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script>
+        const PEER_PREFIX = "phantom-v3-";
+        let activeConnection = null;
+        let typingTimer = null;
+
+        const chatBox = document.getElementById('chat-box');
+        const msgInput = document.getElementById('msg-input');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const emojiPicker = document.getElementById('emoji-picker');
+
+        // Extended Emoji Dictionary
+        const emojis = [
+            "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌",
+            "😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸",
+            "🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢",
+            "😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣","🤭",
+            "🫢","🫡","🤔","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦","😧",
+            "😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷","🤒",
+            "🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃",
+            // Keeping a few critical operational glyphs at the end
+            "📍","⚠️","✅","❌","🛑","☢️","☣️","🔒","🔓","🔑","⏳","⌚","📱","💻","💣","🔫"
+                    ];
+
+        // Populate Emoji Picker
+        emojis.forEach(e => {
+            let span = document.createElement('span');
+            span.className = 'emoji-item';
+            span.innerText = e;
+            span.onclick = () => {
+                msgInput.value += e;
+                msgInput.focus();
+                triggerTypingEvent();
+                emojiPicker.style.display = 'none'; // Auto-close after picking
+            };
+            emojiPicker.appendChild(span);
+        });
+
+        function toggleEmojiPicker() {
+            emojiPicker.style.display = emojiPicker.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // Hide emoji picker if clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target.id !== 'emoji-btn' && e.target.className !== 'emoji-item' && e.target.id !== 'emoji-picker') {
+                emojiPicker.style.display = 'none';
+            }
+        });
+
+        function showPanel(panelId) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active-panel'));
+            document.getElementById(panelId).classList.add('active-panel');
+        }
+
+        function appendMessage(text, type) {
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            div.innerText = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function unlockChat() {
+            showPanel('chat-panel');
+            msgInput.focus();
+        }
+
+        // --- TYPING DETECTION LOGIC ---
+        msgInput.addEventListener("input", triggerTypingEvent);
+
+        function triggerTypingEvent() {
+            if (!activeConnection || !activeConnection.open) return;
+            activeConnection.send(JSON.stringify({ type: 'typing', state: true }));
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                if (activeConnection && activeConnection.open) {
+                    activeConnection.send(JSON.stringify({ type: 'typing', state: false }));
+                }
+            }, 2000);
+        }
+
+        msgInput.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // --- HOST LOGIC ---
+        function initHost() {
+            const code = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase();
+            const fullPeerId = PEER_PREFIX + code;
+            const peer = new Peer(fullPeerId);
+            
+            peer.on('open', () => document.getElementById('host-code').value = code);
+            peer.on('connection', (conn) => {
+                document.getElementById('host-status').innerText = "Status: Target Locked!";
+                document.getElementById('host-status').style.color = "#00ffcc";
+                setupDataChannel(conn);
+            });
+        }
+
+        // --- GUEST LOGIC ---
+        function connectToHost() {
+            const code = document.getElementById('guest-input').value.trim().toUpperCase();
+            if (code.length !== 6) return alert("Invalid Channel Code.");
+
+            document.getElementById('connect-btn').style.display = 'none';
+            document.getElementById('guest-status').style.display = 'block';
+
+            const peer = new Peer(); 
+            peer.on('open', () => {
+                const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+                conn.on('open', () => setupDataChannel(conn));
+                conn.on('error', () => {
+                    document.getElementById('guest-status').innerText = "Failed to lock onto channel.";
+                    document.getElementById('guest-status').style.color = "#ff003c";
+                });
+            });
+        }
+
+        // --- DATA TUNNEL LOGIC ---
+        function setupDataChannel(conn) {
+            activeConnection = conn;
+            unlockChat();
+
+            conn.on('data', (data) => {
+                try {
+                    const payload = JSON.parse(data);
+                    if (payload.type === 'msg') {
+                        appendMessage(payload.text, 'msg-remote');
+                        typingIndicator.style.visibility = 'hidden'; 
+                    } 
+                    else if (payload.type === 'typing') {
+                        typingIndicator.style.visibility = payload.state ? 'visible' : 'hidden';
+                    }
+                    else if (payload.type === 'burn') {
+                        executeBurn();
+                    }
+                } catch (e) { console.error("Invalid payload."); }
+            });
+
+            conn.on('close', () => {
+                appendMessage("WARNING: Target disconnected. Tunnel collapsed.", 'msg-sys');
+                msgInput.disabled = true;
+                document.getElementById('send-btn').disabled = true;
+                document.getElementById('emoji-btn').disabled = true;
+                typingIndicator.style.visibility = 'hidden';
+            });
+        }
+
+        function sendMessage() {
+            const text = msgInput.value.trim();
+            if (text === '' || !activeConnection || !activeConnection.open) return;
+
+            activeConnection.send(JSON.stringify({ type: 'msg', text: text }));
+            activeConnection.send(JSON.stringify({ type: 'typing', state: false }));
+            clearTimeout(typingTimer);
+            
+            appendMessage(text, 'msg-local');
+            msgInput.value = '';
+            emojiPicker.style.display = 'none';
+        }
+
+        function burnComms() {
+            if (activeConnection && activeConnection.open) {
+                activeConnection.send(JSON.stringify({ type: 'burn' }));
+                activeConnection.close();
+            }
+            executeBurn();
+        }
+
+        function executeBurn() {
+            document.body.innerHTML = "<h1 style='color:#ff003c; text-align:center; margin-top:20vh;'>[ TERMINAL WIPED BY COUNTERPARTY ]</h1>";
+            setTimeout(() => { window.location.reload(); }, 2000);
+        }
+    </script>
+</body>
+</html>
