@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phantom Comm-Link V3 (STUN Enabled)</title>
+    <title>Phantom Comm-Link V3 (Master Build)</title>
     <style>
         body {
             background-color: #050505; color: #00ffcc; font-family: 'Courier New', monospace;
@@ -142,7 +142,7 @@
                 msgInput.value += e;
                 msgInput.focus();
                 triggerTypingEvent();
-                emojiPicker.style.display = 'none'; // Auto-close after picking
+                emojiPicker.style.display = 'none';
             };
             emojiPicker.appendChild(span);
         });
@@ -197,12 +197,11 @@
             }
         });
 
-        // --- HOST LOGIC (STUN INJECTED) ---
+        // --- HOST LOGIC (RACE CONDITION PATCHED + STUN) ---
         function initHost() {
             const code = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase();
             const fullPeerId = PEER_PREFIX + code;
             
-            // Bypass firewalls with Google STUN Servers
             const peer = new Peer(fullPeerId, {
                 config: {
                     'iceServers': [
@@ -213,14 +212,23 @@
             });
             
             peer.on('open', () => document.getElementById('host-code').value = code);
+            
             peer.on('connection', (conn) => {
-                document.getElementById('host-status').innerText = "Status: Target Locked!";
+                if (conn.open) {
+                    finalizeLock(conn);
+                } else {
+                    conn.on('open', () => finalizeLock(conn));
+                }
+            });
+
+            function finalizeLock(conn) {
+                document.getElementById('host-status').innerText = "Status: Target Locked! Tunnel Pressurized.";
                 document.getElementById('host-status').style.color = "#00ffcc";
                 setupDataChannel(conn);
-            });
+            }
         }
 
-        // --- GUEST LOGIC (STUN INJECTED) ---
+        // --- GUEST LOGIC (STUN ENABLED) ---
         function connectToHost() {
             const code = document.getElementById('guest-input').value.trim().toUpperCase();
             if (code.length !== 6) return alert("Invalid Channel Code.");
@@ -228,7 +236,6 @@
             document.getElementById('connect-btn').style.display = 'none';
             document.getElementById('guest-status').style.display = 'block';
 
-            // Bypass firewalls with Google STUN Servers
             const peer = new Peer({
                 config: {
                     'iceServers': [
